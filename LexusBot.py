@@ -8,6 +8,9 @@ from typing import Dict
 
 import datetime
 import time
+# pip install--upgrade pip
+# pip install pyserial
+import serial
 
 TOKEN = os.environ.get("TOKEN")
 
@@ -16,7 +19,22 @@ import TelegramAPI
 class LexusBot:
     def __init__(self):
         self.data = {'users':{},'alarms':{}}
+        self.arduino = serial.Serial('COM5', 9600)
         pass
+
+    #Enviar mensagem para arduino
+    def arduinoWrite(self,text):
+        #self.arduino.write(bytes(text, 'utf-8'))
+        self.arduino.write(text.encode())
+        self.arduino.flush()
+
+    #Ler mensagem do arduino
+    def arduinoRead(self):
+        time.sleep(0.05)
+        msg = self.arduino.readline()
+        #msg = msg[2:-5]
+        self.arduino.flush()
+        return msg
     
     def receivedMenssageEvent(self, Mensagem):
         atualUser = self.getUser(Mensagem)
@@ -27,7 +45,17 @@ class LexusBot:
                 return self.requestRegistration(Mensagem)
 
         if atualUser["cargo"] >= 1:#Comandos Usuario
-            pass
+            if mensagemAtual[0] == "/luz":
+                if mensagemSize >= 2 and mensagemAtual[1] == "on":
+                    self.telegramAPI.sendMensagem(Mensagem,"O led foi acesso")
+                    return self.arduinoWrite("led_on")
+                if mensagemSize >= 2 and mensagemAtual[1] == "off":
+                    self.telegramAPI.sendMensagem(Mensagem,"O led foi apagado")
+                    return self.arduinoWrite("led_off")
+            texto = "o comando /luz aceita as seguintes combinações:\n"
+            texto += "/luz on - Liga a luz\n"
+            texto += "/luz off - Desliga a luz\n"
+            return self.telegramAPI.sendMensagem(Mensagem,texto)
 
         if atualUser["cargo"] == 2:#Comandos ADM
             if mensagemAtual[0] == "/user":
@@ -40,12 +68,11 @@ class LexusBot:
                         return self.addUser(Mensagem,2,mensagemAtual[3])
                 if mensagemSize >= 2 and mensagemAtual[1] == "remove":
                     return self.removeUser(Mensagem, mensagemAtual[2])
-                texto = " o comando /user aceita as seguintes combinações:\n"
+                texto = "O comando /user aceita as seguintes combinações:\n"
                 texto += "/user add [convidado|adm] [id] - Adiciona um convidado a o sistema\n"
                 texto += "/user remove [id] - Adiciona um convidado a o sistema\n"
                 texto += "/user list - Listar todos presentes no sistema\n"
-                self.telegramAPI.sendMensagem(Mensagem,texto)
-                return
+                return self.telegramAPI.sendMensagem(Mensagem,texto)
 
 
         if mensagemAtual[0] == "/help" or mensagemAtual[0] == "/start":
@@ -157,6 +184,7 @@ class LexusBot:
             texto += "/cadastrar - Solicita a um administração para lhe dar acesso a o sistema\n"
             pass
         if atualUser["cargo"] >= 1:#Comandos Convidado
+            texto += "/luz [on|off]- Acende ou Apaga a luz\n"
             pass
         if atualUser["cargo"] == 2:#Comandos ADM
             texto += "/user - Gerencia usuarios\n"
