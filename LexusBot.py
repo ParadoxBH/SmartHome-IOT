@@ -13,28 +13,44 @@ import time
 import serial
 
 TOKEN = os.environ.get("TOKEN")
+SERIAL = os.environ.get("SERIAL")
 
 import TelegramAPI
 
 class LexusBot:
     def __init__(self):
         self.data = {'users':{},'alarms':{}}
-        self.arduino = serial.Serial('COM5', 9600)
+        try:
+            self.arduino = serial.Serial(SERIAL, 9600)
+        except:
+            self.arduino = NULL
+        self.cargoNome = ["Convidado","Usuario", "Administrador"]
         pass
 
     #Enviar mensagem para arduino
     def arduinoWrite(self,text):
-        #self.arduino.write(bytes(text, 'utf-8'))
-        self.arduino.write(text.encode())
-        self.arduino.flush()
+        try:
+            if(self.arduino == NULL):
+                return
+            #self.arduino.write(bytes(text, 'utf-8'))
+            self.arduino.write(text.encode())
+            self.arduino.flush()
+        except:
+            self.arduino = NULL
 
     #Ler mensagem do arduino
     def arduinoRead(self):
-        time.sleep(0.05)
-        msg = self.arduino.readline()
-        #msg = msg[2:-5]
-        self.arduino.flush()
-        return msg
+        try:
+            if(self.arduino == NULL):
+                return ""
+            time.sleep(0.05)
+            msg = self.arduino.readline()
+            #msg = msg[2:-5]
+            self.arduino.flush()
+            return msg
+        except:
+            self.arduino = NULL
+            return ""
     
     def receivedMenssageEvent(self, Mensagem):
         atualUser = self.getUser(Mensagem)
@@ -52,25 +68,25 @@ class LexusBot:
                 if mensagemSize >= 2 and mensagemAtual[1] == "off":
                     self.telegramAPI.sendMensagem(Mensagem,"O led foi apagado")
                     return self.arduinoWrite("led_off")
-            texto = "o comando /luz aceita as seguintes combinações:\n"
-            texto += "/luz on - Liga a luz\n"
-            texto += "/luz off - Desliga a luz\n"
-            return self.telegramAPI.sendMensagem(Mensagem,texto)
+                texto = "o comando /luz aceita as seguintes combinações:\n"
+                texto += "/luz on - Liga a luz\n"
+                texto += "/luz off - Desliga a luz\n"
+                return self.telegramAPI.sendMensagem(Mensagem,texto)
 
-        if atualUser["cargo"] == 2:#Comandos ADM
+        if atualUser["cargo"] >= 2:#Comandos ADM
             if mensagemAtual[0] == "/user":
                 if mensagemSize >= 2 and mensagemAtual[1] == "list":
                     return self.telegramAPI.sendMensagem(Mensagem,self.getListUsers())
-                if mensagemSize >= 4 and mensagemAtual[1] == "add":
-                    if mensagemAtual[2] == "convidado":
+                if mensagemSize >= 4 and (mensagemAtual[1] == "add" or mensagemAtual[1] == "update"):
+                    if mensagemAtual[2] == "usuario":
                         return self.addUser(Mensagem,1,mensagemAtual[3])
                     if mensagemAtual[2] == "adm":
                         return self.addUser(Mensagem,2,mensagemAtual[3])
                 if mensagemSize >= 2 and mensagemAtual[1] == "remove":
                     return self.removeUser(Mensagem, mensagemAtual[2])
                 texto = "O comando /user aceita as seguintes combinações:\n"
-                texto += "/user add [convidado|adm] [id] - Adiciona um convidado a o sistema\n"
-                texto += "/user remove [id] - Adiciona um convidado a o sistema\n"
+                texto += "/user [add|update] [usuario|adm] [id] - Adiciona um usuario a o sistema\n"
+                texto += "/user remove [id] - Remove um usuario a o sistema\n"
                 texto += "/user list - Listar todos presentes no sistema\n"
                 return self.telegramAPI.sendMensagem(Mensagem,texto)
 
@@ -83,8 +99,8 @@ class LexusBot:
         pass
     
     def requestRegistration(self, Mensagem):
-        if self.data["users"]:
-            return self.telegramAPI.sendMensagem(Mensagem,"Sua soliticatação está em processamento, por favor aguarde até que um dos nossos administradores confirme seu cadastro.")
+        if Mensagem.id in self.data["users"]:
+            return self.telegramAPI.sendMensagem(Mensagem,"Sua solitação está em processamento, por favor aguarde até que um dos nossos administradores confirme seu cadastro.")
           
         self.sendMensagemADM("{id} - {nome} solicitou acesso a aplicação. Oque deseja fazer?\n/user add convidado {id} - Aceitar\n/user remove {id} - Recusar".format(id=Mensagem.id,nome=Mensagem.nome))
         print(self.data["users"])
@@ -96,36 +112,36 @@ class LexusBot:
     
     def addUser(self, Mensagem, cargo, id):
 
-        if id in self.data["users"]:
-            if self.data["users"][id]["cargo"] == 2:
-                self.telegramAPI.sendMensagem(Mensagem,"Não é possivel alterar este usuario pois o mesmo é administrador.")
-            self.telegramAPI.sendMensagem(Mensagem,"Foi alterado o cargo do '{user}' de {old} para {new}.".format(nome=self.data["users"][id]["nome"],old=self.stringCargo(self.data["users"][id]["cargo"]),new=self.stringCargo(cargo)))
+        if Mensagem.id in self.data["users"] and self.data["users"][Mensagem.id]["cargo"] < cargo:
+            return self.telegramAPI.sendMensagem(Mensagem,"Não é possivel dar um cargo maior que o seu para um usuario")
+        elif id in self.data["users"]:
+            if self.data["users"][id]["cargo"] >= (Mensagem.id in self.data["users"] and self.data["users"][Mensagem.id]["cargo"] or 2):
+                return self.telegramAPI.sendMensagem(Mensagem,"Não é possivel alterar o cargo deste usuario pois o mesmo tem um cargo maior que o seu.")
+            self.telegramAPI.sendMensagem(Mensagem,"Foi alterado o cargo do '{nome}' de {old} para {new}.".format(nome=self.data["users"][id]["nome"],old=self.stringCargo(self.data["users"][id]["cargo"]),new=self.stringCargo(cargo)))
             self.data["users"][id]["cargo"] = cargo
         else:
             self.data["users"][id] = self.UserData(id,"Desconhecido",cargo)
             self.telegramAPI.sendMensagem(Mensagem,"O '{id}' foi adicionado como {cargo}.".format(id=id,cargo=self.stringCargo(cargo)))
             MensagemNovoUsuario = TelegramAPI.Mensagem(NULL)
             MensagemNovoUsuario.id = id
-            self.telegramAPI.sendMensagem(MensagemNovoUsuario,"Olá você foi adicionado por um dos nossos administradores como {cargo}.".format(id=id,cargo=self.stringCargo(cargo)))
+        self.telegramAPI.sendMensagem(MensagemNovoUsuario,"Olá você foi adicionado por um dos nossos administradores como {cargo}.".format(id=id,cargo=self.stringCargo(cargo)))
         self.saveJson()
     
     def removeUser(self, Mensagem, id):
         if id in self.data["users"]:
-            if self.data["users"][id]["cargo"] == 2:
-                return self.telegramAPI.sendMensagem(Mensagem,"Não é possivel remover este usuario pois o mesmo é administrador.")
+            if self.data["users"][id]["cargo"] >= (Mensagem.id in self.data["users"] and self.data["users"][Mensagem.id]["cargo"] or 2):
+                return self.telegramAPI.sendMensagem(Mensagem,"Não é possivel remover este usuario pois o mesmo tem um cargo maior maior que o seu.")
             else:
-                self.telegramAPI.sendMensagem(Mensagem,"{nome} foi 'promovido' para convidado".format(nome=self.data["users"][id]["nome"]))
+                self.telegramAPI.sendMensagem(Mensagem,"{nome} foi 'promovido' para {cargo}".format(nome=self.data["users"][id]["nome"],cargo=self.stringCargo(0)))
                 del self.data["users"][id]
                 return self.saveJson()
         else:
             self.telegramAPI.sendMensagem(Mensagem," O id '{id}' não é usuario".format(id=id))
           
     def stringCargo(self,cargo):
-        if cargo == 1:
-            return "Usuario"
-        if cargo == 2:
-            return "Administrador"
-        return "Convidado"
+        if cargo < len(self.cargoNome):
+            return self.cargoNome[cargo]
+        return self.cargoNome[len(self.cargoNome)-1]
 
     def User(self,Mensagem):
         return self.UserData(Mensagem.id,Mensagem.nome,0)
@@ -140,7 +156,7 @@ class LexusBot:
     #Converte a mensagem recebida em parametro de usuario
     def getUser(self, Mensagem):
         retorno = self.User(Mensagem)
-        if self.data["users"]:
+        if Mensagem.id in self.data["users"]:
             retorno["cargo"] = self.data["users"][Mensagem.id]["cargo"]
             if self.data["users"][Mensagem.id]["nome"] != Mensagem.nome:
                 self.saveJson()
@@ -160,18 +176,19 @@ class LexusBot:
                 convidados.append(self.data["users"][x]["id"] + " - " + self.data["users"][x]["nome"])
             if self.data["users"][x]["cargo"] == 1:
                 usuarios.append(self.data["users"][x]["id"] + " - " + self.data["users"][x]["nome"])
-            if self.data["users"][x]["cargo"] == 2:
+            if self.data["users"][x]["cargo"] >= 2:
                 adm.append(self.data["users"][x]["id"] + " - " + self.data["users"][x]["nome"])
         
-        texto += "\n\n[Convidados ({cont})]:".format(cont=len(convidados))
+
+        texto += "\n\n[{cargo} ({cont})]:".format(cargo=self.stringCargo(0), cont=len(convidados))
         for x in convidados:
             texto += "\n" + x
 
-        texto += "\n\n[Usuarios ({cont})]:".format(cont=len(usuarios))
+        texto += "\n\n[{cargo} ({cont})]:".format(cargo=self.stringCargo(1), cont=len(usuarios))
         for x in usuarios:
             texto += "\n" + x
 
-        texto += "\n\n[Administradores ({cont})]:".format(cont=len(adm))
+        texto += "\n\n[{cargo} ({cont})]:".format(cargo=self.stringCargo(2), cont=len(adm))
         for x in adm:
             texto += "\n" + x
 
@@ -186,7 +203,7 @@ class LexusBot:
         if atualUser["cargo"] >= 1:#Comandos Convidado
             texto += "/luz [on|off]- Acende ou Apaga a luz\n"
             pass
-        if atualUser["cargo"] == 2:#Comandos ADM
+        if atualUser["cargo"] >= 2:#Comandos ADM
             texto += "/user - Gerencia usuarios\n"
             pass
         texto += "/help - Lista de comandos\n"
