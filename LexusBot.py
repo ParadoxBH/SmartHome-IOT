@@ -1,5 +1,4 @@
 from ast import Return
-from asyncio.windows_events import NULL
 import os
 from os.path import exists as file_exists
 import this
@@ -11,9 +10,10 @@ import time
 # pip install--upgrade pip
 # pip install pyserial
 import serial
+import sys
 
-TOKEN = os.environ.get("TOKEN")
-SERIAL = os.environ.get("SERIAL")
+TOKEN = str(os.environ.get("TOKEN"))
+SERIAL = str(os.environ.get("SERIAL"))
 
 import TelegramAPI
 
@@ -23,25 +23,25 @@ class LexusBot:
         try:
             self.arduino = serial.Serial(SERIAL, 9600)
         except:
-            self.arduino = NULL
+            self.arduino = None
         self.cargoNome = ["Convidado","Usuario", "Administrador"]
         pass
 
     #Enviar mensagem para arduino
     def arduinoWrite(self,text):
         try:
-            if(self.arduino == NULL):
+            if(self.arduino == None):
                 return
             #self.arduino.write(bytes(text, 'utf-8'))
             self.arduino.write(text.encode())
             self.arduino.flush()
         except:
-            self.arduino = NULL
+            self.arduino = None
 
     #Ler mensagem do arduino
     def arduinoRead(self):
         try:
-            if(self.arduino == NULL):
+            if(self.arduino == None):
                 return ""
             time.sleep(0.05)
             msg = self.arduino.readline()
@@ -49,7 +49,7 @@ class LexusBot:
             self.arduino.flush()
             return msg
         except:
-            self.arduino = NULL
+            self.arduino = None
             return ""
     
     def receivedMenssageEvent(self, Mensagem):
@@ -122,7 +122,7 @@ class LexusBot:
         else:
             self.data["users"][id] = self.UserData(id,"Desconhecido",cargo)
             self.telegramAPI.sendMensagem(Mensagem,"O '{id}' foi adicionado como {cargo}.".format(id=id,cargo=self.stringCargo(cargo)))
-            MensagemNovoUsuario = TelegramAPI.Mensagem(NULL)
+            MensagemNovoUsuario = TelegramAPI.Mensagem(None)
             MensagemNovoUsuario.id = id
         self.telegramAPI.sendMensagem(MensagemNovoUsuario,"Olá você foi adicionado por um dos nossos administradores como {cargo}.".format(id=id,cargo=self.stringCargo(cargo)))
         self.saveJson()
@@ -245,6 +245,8 @@ class LexusBot:
 #Função inicial do programa
 if __name__ == "__main__":
     
+    TOKEN = str(sys.argv(1))
+    SERIAL = str(sys.argv(2))
     print("-" * os.get_terminal_size().columns)
     print("\tINICIALIZANDO LEXUS")
     print("-" * os.get_terminal_size().columns)
