@@ -31,12 +31,15 @@ class LexusBot:
     def arduinoWrite(self,text):
         try:
             if(self.arduino == None):
+                self.arduino = serial.Serial(SERIAL, 9600)
+            if(self.arduino == None):
                 return
             #self.arduino.write(bytes(text, 'utf-8'))
             self.arduino.write(text.encode())
             self.arduino.flush()
         except:
             self.arduino = None
+            print("Falha na comunicação com o arduino")
 
     #Ler mensagem do arduino
     def arduinoRead(self):
@@ -62,15 +65,15 @@ class LexusBot:
 
         if atualUser["cargo"] >= 1:#Comandos Usuario
             if mensagemAtual[0] == "/luz":
-                if mensagemSize >= 2 and mensagemAtual[1] == "on":
+                if mensagemSize >= 3 and mensagemAtual[1] == "on":
                     self.telegramAPI.sendMensagem(Mensagem,"O led foi acesso")
-                    return self.arduinoWrite("led_on")
-                if mensagemSize >= 2 and mensagemAtual[1] == "off":
+                    return self.arduinoWrite("led{id}_on".format(id=mensagemAtual[2]))
+                if mensagemSize >= 3 and mensagemAtual[1] == "off":
                     self.telegramAPI.sendMensagem(Mensagem,"O led foi apagado")
-                    return self.arduinoWrite("led_off")
+                    return self.arduinoWrite("led{id}_off".format(id=mensagemAtual[2]))
                 texto = "o comando /luz aceita as seguintes combinações:\n"
-                texto += "/luz on - Liga a luz\n"
-                texto += "/luz off - Desliga a luz\n"
+                texto += "/luz on [id] - Liga a luz\n"
+                texto += "/luz off [id] - Desliga a luz\n"
                 return self.telegramAPI.sendMensagem(Mensagem,texto)
 
         if atualUser["cargo"] >= 2:#Comandos ADM
@@ -201,7 +204,7 @@ class LexusBot:
             texto += "/cadastrar - Solicita a um administração para lhe dar acesso a o sistema\n"
             pass
         if atualUser["cargo"] >= 1:#Comandos Convidado
-            texto += "/luz [on|off]- Acende ou Apaga a luz\n"
+            texto += "/luz [on|off] [id]- Acende ou Apaga a luz\n"
             pass
         if atualUser["cargo"] >= 2:#Comandos ADM
             texto += "/user - Gerencia usuarios\n"
@@ -245,26 +248,30 @@ class LexusBot:
 #Função inicial do programa
 if __name__ == "__main__":
     
-    TOKEN = str(sys.argv(1))
-    SERIAL = str(sys.argv(2))
+    if len(sys.argv) > 1:
+        TOKEN = str(sys.argv(1))
+    if len(sys.argv) > 2:
+        SERIAL = str(sys.argv(2))
+    debug = False
+    if len(sys.argv) > 3:
+        debug = str(sys.argv(3)) == '-debug'
     print("-" * os.get_terminal_size().columns)
     print("\tINICIALIZANDO LEXUS")
     print("-" * os.get_terminal_size().columns)
 
-
-    tg = LexusBot()
-    tg.run()
-    
-    """
+    if debug:
+        tg = LexusBot()
+        tg.run()
+    else:
     #RUN AS ANTIBUG
-    while(True):
-        try:
-            tg = LexusBot()
-            tg.run()
-        except Exception as e:
-            print("Um erro inesperado aconteceu:")
-            print(e)
-            print("-" * os.get_terminal_size().columns)
-            print("\tREINICIANDO LEXUS")
-            print("-" * os.get_terminal_size().columns)
-    """
+        while(True):
+            try:
+                tg = LexusBot()
+                tg.run()
+            except Exception as e:
+                print("Um erro inesperado aconteceu:")
+                print(e)
+                print("-" * os.get_terminal_size().columns)
+                print("\tREINICIANDO LEXUS")
+                print("-" * os.get_terminal_size().columns)
+    
