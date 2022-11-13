@@ -4,6 +4,7 @@ from os.path import exists as file_exists
 import this
 import json
 from typing import Dict
+from threading import Thread
 
 import datetime
 import time
@@ -16,44 +17,22 @@ TOKEN = str(os.environ.get("TOKEN"))
 SERIAL = str(os.environ.get("SERIAL"))
 
 import TelegramAPI
+import ArduinoAPI
 
 class LexusBot:
     def __init__(self):
         self.data = {'users':{},'alarms':{}}
-        try:
-            self.arduino = serial.Serial(SERIAL, 9600)
-        except:
-            self.arduino = None
         self.cargoNome = ["Convidado","Usuario", "Administrador"]
+        self.arduino = ArduinoAPI.ArduinoEcho(SERIAL,9600,self.arduinoRead)
         pass
 
-    #Enviar mensagem para arduino
-    def arduinoWrite(self,text):
-        try:
-            if(self.arduino == None):
-                self.arduino = serial.Serial(SERIAL, 9600)
-            if(self.arduino == None):
-                return
-            #self.arduino.write(bytes(text, 'utf-8'))
-            self.arduino.write(text.encode())
-            self.arduino.flush()
-        except:
-            self.arduino = None
-            print("Falha na comunicação com o arduino")
+    def arduinoRead(self, Mensagem):
+        if("alert" in Mensagem):
+            self.sendMensagemADM("O ALARME DA CASA ESTA TOCANDO")
+        else:
+            print("arduino receive: {text}".format(text=Mensagem))
+        pass
 
-    #Ler mensagem do arduino
-    def arduinoRead(self):
-        try:
-            if(self.arduino == None):
-                return ""
-            time.sleep(0.05)
-            msg = self.arduino.readline()
-            #msg = msg[2:-5]
-            self.arduino.flush()
-            return msg
-        except:
-            self.arduino = None
-            return ""
     
     def receivedMenssageEvent(self, Mensagem):
         atualUser = self.getUser(Mensagem)
@@ -66,17 +45,40 @@ class LexusBot:
         if atualUser["cargo"] >= 1:#Comandos Usuario
             if mensagemAtual[0] == "/luz":
                 if mensagemSize >= 3 and mensagemAtual[1] == "on":
-                    self.telegramAPI.sendMensagem(Mensagem,"O led foi acesso")
-                    return self.arduinoWrite("led{id}_on".format(id=mensagemAtual[2]))
+                    if(self.arduino.write("led{id}_on".format(id=mensagemAtual[2]))):
+                        self.telegramAPI.sendMensagem(Mensagem,"O led foi acesso")
+                    else:
+                        self.telegramAPI.sendMensagem(Mensagem,"O led não foi acesso")
+                    return
                 if mensagemSize >= 3 and mensagemAtual[1] == "off":
-                    self.telegramAPI.sendMensagem(Mensagem,"O led foi apagado")
-                    return self.arduinoWrite("led{id}_off".format(id=mensagemAtual[2]))
+                    if(self.arduino.write("led{id}_off".format(id=mensagemAtual[2]))):
+                        self.telegramAPI.sendMensagem(Mensagem,"O led foi apagado")
+                    else:
+                        self.telegramAPI.sendMensagem(Mensagem,"O led não foi apagado")
+                    return
                 texto = "o comando /luz aceita as seguintes combinações:\n"
                 texto += "/luz on [id] - Liga a luz\n"
                 texto += "/luz off [id] - Desliga a luz\n"
                 return self.telegramAPI.sendMensagem(Mensagem,texto)
 
         if atualUser["cargo"] >= 2:#Comandos ADM
+            if mensagemAtual[0] == "/alarme":
+                if mensagemSize >= 2 and mensagemAtual[1] == "on":
+                    if(self.arduino.write("alarm_on")):
+                        self.telegramAPI.sendMensagem(Mensagem,"O alarme foi ligado")
+                    else:
+                        self.telegramAPI.sendMensagem(Mensagem,"Não foi possivel ligar o alarme")
+                    return
+                if mensagemSize >= 2 and mensagemAtual[1] == "off":
+                    if(self.arduino.write("alarm_off")):
+                        self.telegramAPI.sendMensagem(Mensagem,"O alarme foi desligado")
+                    else:
+                        self.telegramAPI.sendMensagem(Mensagem,"Não foi possivel desligar o alarme")
+                    return
+                texto = "o comando /alarme aceita as seguintes combinações:\n"
+                texto += "/alarme on - Liga o alarme\n"
+                texto += "/alarme off - Desliga o alarme\n"
+                return self.telegramAPI.sendMensagem(Mensagem,texto)
             if mensagemAtual[0] == "/user":
                 if mensagemSize >= 2 and mensagemAtual[1] == "list":
                     return self.telegramAPI.sendMensagem(Mensagem,self.getListUsers())
@@ -208,6 +210,7 @@ class LexusBot:
             pass
         if atualUser["cargo"] >= 2:#Comandos ADM
             texto += "/user - Gerencia usuarios\n"
+            texto += "/alarme [on|off]- liga ou desliga o alarme da casa\n"
             pass
         texto += "/help - Lista de comandos\n"
         return texto
@@ -215,6 +218,11 @@ class LexusBot:
     def sendMensagemADM(self, texto):
         print(texto)
         print("-" * os.get_terminal_size().columns)
+        for x in self.data["users"]:
+            if self.data["users"][x]["cargo"] >= 2:
+                MensagemNovoUsuario = TelegramAPI.Mensagem(None)
+                MensagemNovoUsuario.id = self.data["users"][x]["id"]
+                self.telegramAPI.sendMensagem(MensagemNovoUsuario, texto)
         pass
 
     #Roda a class
@@ -249,12 +257,12 @@ class LexusBot:
 if __name__ == "__main__":
     
     if len(sys.argv) > 1:
-        TOKEN = str(sys.argv(1))
+        TOKEN = str(sys.argv[1])
     if len(sys.argv) > 2:
-        SERIAL = str(sys.argv(2))
+        SERIAL = str(sys.argv[2])
     debug = False
     if len(sys.argv) > 3:
-        debug = str(sys.argv(3)) == '-debug'
+        debug = str(sys.argv[3]) == '-debug'
     print("-" * os.get_terminal_size().columns)
     print("\tINICIALIZANDO LEXUS")
     print("-" * os.get_terminal_size().columns)
