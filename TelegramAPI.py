@@ -19,6 +19,8 @@ class Mensagem:
             self.dataString = self.data.strftime("%Y-%m-%d %H:%M:%S")
             try:
                 self.username = incoming["message"]["from"]["username"]
+                self.nome = self.username
+                self.texto = ""
             except:
                 self.username = str(self.id)
                 self.nome = (incoming["message"]["from"].get("first_name", "") + " " + incoming["message"]["from"].get("last_name", ""))
@@ -34,9 +36,12 @@ class Mensagem:
         pass
 
     def printInf(self):
-        print("De {nome} as {tempo}".format(nome=self.nome,tempo=self.dataString))
-        print(self.texto)
-        print("-" * os.get_terminal_size().columns)
+        try:
+            print("De {nome} as {tempo}".format(nome=self.nome,tempo=self.dataString))
+            print(self.texto)
+            print("-" * os.get_terminal_size().columns)
+        except:
+            print("erro na impressao da mensagem")
         pass
 
 
