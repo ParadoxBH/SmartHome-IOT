@@ -127,8 +127,8 @@ class LexusBot:
         else:
             self.data["users"][id] = self.UserData(id,"Desconhecido",cargo)
             self.telegramAPI.sendMensagem(Mensagem,"O '{id}' foi adicionado como {cargo}.".format(id=id,cargo=self.stringCargo(cargo)))
-            MensagemNovoUsuario = TelegramAPI.Mensagem(None)
-            MensagemNovoUsuario.id = id
+        MensagemNovoUsuario = TelegramAPI.Mensagem(None)
+        MensagemNovoUsuario.id = id
         self.telegramAPI.sendMensagem(MensagemNovoUsuario,"Olá você foi adicionado por um dos nossos administradores como {cargo}.".format(id=id,cargo=self.stringCargo(cargo)))
         self.saveJson()
     

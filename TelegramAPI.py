@@ -11,33 +11,33 @@ import time
 signal.signal(signal.SIGINT, signal.SIG_DFL)
 
 class Mensagem:
-        def __init__(self, incoming):
+    def __init__(self, incoming):
+        try:
+            self.id = str(incoming["message"]["chat"]["id"])
+            self.cont = incoming["message"]["message_id"]
+            self.data = datetime.fromtimestamp(incoming["message"]["date"])
+            self.dataString = self.data.strftime("%Y-%m-%d %H:%M:%S")
             try:
-                self.id = str(incoming["message"]["chat"]["id"])
-                self.cont = incoming["message"]["message_id"]
-                self.data = datetime.fromtimestamp(incoming["message"]["date"])
-                self.dataString = self.data.strftime("%Y-%m-%d %H:%M:%S")
-                try:
-                    self.username = incoming["message"]["from"]["username"]
-                except:
-                    self.username = str(self.id)
+                self.username = incoming["message"]["from"]["username"]
+            except:
+                self.username = str(self.id)
                 self.nome = (incoming["message"]["from"].get("first_name", "") + " " + incoming["message"]["from"].get("last_name", ""))
                 self.texto = incoming["message"]["text"]
-            except:
-                self.id = "0"
-                self.cont = "0"
-                self.data = datetime.fromtimestamp(time.time())
-                self.dataString = "00/00/00 00:00:00"
-                self.username = "0"
-                self.nome = ""
-                self.texto = ""
-            pass
+        except:
+            self.id = "0"
+            self.cont = "0"
+            self.data = datetime.fromtimestamp(time.time())
+            self.dataString = "00/00/00 00:00:00"
+            self.username = "0"
+            self.nome = ""
+            self.texto = ""
+        pass
 
-        def printInf(self):
-            print("De {nome} as {tempo}".format(nome=self.nome,tempo=self.dataString))
-            print(self.texto)
-            print("-" * os.get_terminal_size().columns)
-            pass
+    def printInf(self):
+        print("De {nome} as {tempo}".format(nome=self.nome,tempo=self.dataString))
+        print(self.texto)
+        print("-" * os.get_terminal_size().columns)
+        pass
 
 
 class TelegramEcho:
